@@ -10,10 +10,24 @@ void MQTTSubscribe::setCallback(mqttcallback_t cb) {
 
 // ------------------------------------------ MAIN CLASS -------------------------------------------
 
-Arduino_MQTT_Looped::Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass,
-  IPAddress* mqtt_server, const char* mqtt_client_id, const char* mqtt_user, const char* mqtt_pass)
-  : wifiClient(client), ssid(ssid), wifi_pass(wifi_pass), mqtt_server(mqtt_server),
-    mqtt_client_id(mqtt_client_id), mqtt_user(mqtt_user), mqtt_pass(mqtt_pass) {
+Arduino_MQTT_Looped::Arduino_MQTT_Looped(
+  WiFiClient* client,
+  const char* ssid,
+  const char* wifi_pass,
+  IPAddress* mqtt_server,
+  uint16_t port,
+  const char* mqtt_user,
+  const char* mqtt_pass,
+  const char* mqtt_client_id
+) : wifiClient(client),
+    ssid(ssid),
+    wifi_pass(wifi_pass),
+    mqtt_server(mqtt_server),
+    port(port),
+    mqtt_client_id(mqtt_client_id),
+    mqtt_user(mqtt_user),
+    mqtt_pass(mqtt_pass)
+{
   // Create a pointer to `_sock` private property of wifiClient.
   // @todo Abstract away from WiFi client.
   this->_sock = &(this->wifiClient->*robbed<WiFiClientSock>::ptr);
@@ -220,7 +234,7 @@ bool Arduino_MQTT_Looped::mqttConnect(void) {
   // Connect to server.
   this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTING;
   DEBUG_PRINTLN(F("Connecting to server..."));
-  ServerDrv::startClient(uint32_t(*this->mqtt_server), (uint16_t)1883, *this->_sock);
+  ServerDrv::startClient(uint32_t(*this->mqtt_server), this->port, *this->_sock);
   this->timer = millis();
   return false;
 }

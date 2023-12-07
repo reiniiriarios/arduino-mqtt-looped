@@ -2,7 +2,8 @@
 // ** Currently WiFiNINA is the only tested library. **
 #include <WiFiNINA.h>
 // Include this library.
-#include <Arduino_MQTT_Looped.h>
+// #include <Arduino_MQTT_Looped.h>
+#include "../Arduino_MQTT_Looped.h"
 
 // Set up your secrets in a different file.
 #define SSID "your_wifi_network"
@@ -23,10 +24,12 @@ Arduino_MQTT_Looped mqttLooped(
   WIFI_PASS,
   // The IP address of the MQTT broker you want to connect to.
   new IPAddress(127,0,0,1),
-  // The client ID is arbitrary and identifies your device.
-  MQTT_CLIENT_ID,
+  // Default MQTT port is usually 1883.
+  1883,
   MQTT_USER,
-  MQTT_PASS
+  MQTT_PASS,
+  // The client ID is arbitrary and identifies your device.
+  MQTT_CLIENT_ID
 );
 
 void setup() {

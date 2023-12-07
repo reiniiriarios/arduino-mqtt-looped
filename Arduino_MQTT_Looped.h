@@ -81,7 +81,7 @@ using namespace std;
 
 // Uncomment/comment to turn on/off debug output messages.
 #define MQTT_LOG
-#define MQTT_DEBUG
+// #define MQTT_DEBUG
 
 // Set where debug messages will be printed.
 #define LOG_PRINTER Serial
@@ -274,7 +274,28 @@ class Arduino_MQTT_Looped {
      * @brief Constructor.
      */
     Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
-      const char* mqtt_client_id, const char* mqtt_user, const char* mqtt_pass);
+      uint16_t port = 1883, const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino");
+
+    /**
+     * @brief Constructor.
+     */
+    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
+      const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
+        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
+
+    /**
+     * @brief Constructor.
+     */
+    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
+      uint16_t port = 1883, const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
+        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, port, mqtt_user, mqtt_pass, mqtt_client_id) {}
+
+    /**
+     * @brief Constructor.
+     */
+    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
+      const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
+        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
 
     /**
      * @brief Set the Airlift onboard LED to a specific color.
@@ -438,6 +459,11 @@ class Arduino_MQTT_Looped {
      * @brief MQTT server address.
      */
     IPAddress* mqtt_server;
+
+    /**
+     * @brief The port of the MQTT broker.
+     */
+    uint16_t port;
 
     /**
      * @brief Client ID for MQTT.
