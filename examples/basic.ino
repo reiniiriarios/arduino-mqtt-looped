@@ -3,7 +3,6 @@
 #include <WiFiNINA.h>
 // Include this library.
 #include <MQTT_Looped.h>
-// #include "../MQTT_Looped.h"
 
 // Set up your secrets in a different file.
 #define SSID "your_wifi_network"
