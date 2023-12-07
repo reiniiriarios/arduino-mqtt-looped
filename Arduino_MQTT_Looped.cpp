@@ -814,9 +814,18 @@ bool Arduino_MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   uint16_t ret = 0;
   uint16_t offset = 0;
   while (len > 0) {
-    if (!this->wifiClient->connected()) {
-      this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
-      DEBUG_PRINTLN(F("Connection failed!"));
+    // Check we haven't timed out.
+    this->send_packet_timer = millis();
+    if (millis() - this->send_packet_timer > SEND_PACKET_TIMEOUT) {
+      DEBUG_PRINT(F("timed out.."));
+      // If offline, flag to connect; if connected, flag to reset connection.
+      if (!this->wifiClient->connected()) {
+        DEBUG_PRINT(F("offline.."));
+        this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
+      } else {
+        DEBUG_PRINT(F("errors?.."));
+        this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+      }
       return false;
     }
     // send 250 bytes at most at a time, can adjust this later based on Client

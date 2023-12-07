@@ -14,6 +14,9 @@ using namespace std;
 // Timeout for reading packets.
 #define READ_PACKET_TIMEOUT 750
 
+// Timeout for sending packets.
+#define SEND_PACKET_TIMEOUT 750
+
 // Keepalive sent with connect packet
 #define MQTT_CONN_KEEPALIVE 300
 
@@ -494,6 +497,11 @@ class Arduino_MQTT_Looped {
      * @brief Length of full packet read.
      */
     uint16_t full_packet_len;
+
+    /**
+     * @brief Timer for sending a packet. Controls timeout.
+     */
+    uint32_t send_packet_timer;
 
     /**
      * @brief Time the last packet was successfully received.
