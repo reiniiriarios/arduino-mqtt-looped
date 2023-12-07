@@ -95,8 +95,8 @@ void Arduino_MQTT_Looped::loop(void) {
       this->processSubscriptionQueue();
       return;
     default:
-      Serial.print("Error: Unrecognized Arduino_MQTT_Looped status: ");
-      Serial.println(this->status);
+      LOG_PRINT("Error: Unrecognized Arduino_MQTT_Looped status: ");
+      LOG_PRINTLN(this->status);
     case MQTT_LOOPED_STATUS_OKAY:
       // If something is available and there's no current status, it might be a subscription packet.
       if (this->wifiClient->available()) {
@@ -156,15 +156,15 @@ bool Arduino_MQTT_Looped::wifiSetup(void) {
     return false;
   }
   // Connect
-  Serial.print(F("Connecting WiFi... "));
-  Serial.print(this->ssid);
+  LOG_PRINT(F("Connecting WiFi... "));
+  LOG_PRINT(this->ssid);
   int8_t ret = WiFiDrv::wifiSetPassphrase(this->ssid, strlen(this->ssid), this->wifi_pass, strlen(this->wifi_pass));
   if (ret == WL_SUCCESS) {
-    Serial.println(F("...ready"));
+    LOG_PRINTLN(F("...ready"));
     this->status = MQTT_LOOPED_STATUS_WIFI_READY;
     return true;
   }
-  Serial.println(F("...failure"));
+  LOG_PRINTLN(F("...failure"));
   this->status = MQTT_LOOPED_STATUS_WIFI_ERRORS;
   return false;
 }
@@ -174,7 +174,7 @@ bool Arduino_MQTT_Looped::wifiConnect(void) {
   switch (wifiStatus) {
     case WL_CONNECTED:
       this->status = MQTT_LOOPED_STATUS_WIFI_CONNECTED;
-      Serial.println(F("WiFi connected"));
+      LOG_PRINTLN(F("WiFi connected"));
       return true; // yay
     case WL_IDLE_STATUS:
     case WL_NO_SSID_AVAIL:
@@ -186,12 +186,12 @@ bool Arduino_MQTT_Looped::wifiConnect(void) {
     case WL_CONNECT_FAILED:
     case WL_CONNECTION_LOST:
       this->status = MQTT_LOOPED_STATUS_WIFI_OFFLINE;
-      Serial.println(F("Connection failure"));
+      LOG_PRINTLN(F("Connection failure"));
       return false;
     default:
       this->status = MQTT_LOOPED_STATUS_WIFI_OFFLINE;
-      Serial.print(F("Connection failure, unknown failure: "));
-      Serial.println(String(wifiStatus));
+      LOG_PRINT(F("Connection failure, unknown failure: "));
+      LOG_PRINTLN(String(wifiStatus));
       return false;
   }
 }
@@ -227,18 +227,18 @@ bool Arduino_MQTT_Looped::mqttConnect(void) {
 
 bool Arduino_MQTT_Looped::waitOnConnection(void) {
   if (this->wifiClient->connected()) {
-    Serial.print(F("Connected to MQTT server, status: "));
+    LOG_PRINT(F("Connected to MQTT server, status: "));
     // @todo Abstract away from WiFi client.
-    Serial.println(this->wifiClient->status());
+    LOG_PRINTLN(this->wifiClient->status());
     this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTION_WAIT;
     this->timer = millis(); // start for next wait
     return true;
   }
   // If we've waited long enough, give up and start over.
   if (millis() - this->timer > 4000) {
-    Serial.print(F("Connection to MQTT server failed, status: "));
+    LOG_PRINT(F("Connection to MQTT server failed, status: "));
     // @todo Abstract away from WiFi client.
-    Serial.println(this->wifiClient->status());
+    LOG_PRINTLN(this->wifiClient->status());
     this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     this->timer = 0;
     return false;
@@ -257,7 +257,7 @@ bool Arduino_MQTT_Looped::waitAfterConnection(void) {
 }
 
 bool Arduino_MQTT_Looped::mqttConnectBroker() {
-  Serial.print(F("MQTT connecting to broker..."));
+  LOG_PRINT(F("MQTT connecting to broker..."));
   // Check attempts.
   this->attempts++;
   if (this->attempts >= 5 || !this->wifiClient->connected()) {
@@ -302,7 +302,7 @@ bool Arduino_MQTT_Looped::confirmConnectToBroker() {
     }
   }
 
-  Serial.println(F("success"));
+  LOG_PRINTLN(F("success"));
   this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTION_CONFIRMED;
   return true;
 }
@@ -343,7 +343,7 @@ bool Arduino_MQTT_Looped::mqttSubscribe(void) {
   } while (true);
 
   // Subscribe
-  Serial.println(F("MQTT subscribing.."));
+  LOG_PRINTLN(F("MQTT subscribing.."));
   DEBUG_PRINT(sub->topic);
   // Construct and send subscription packet.
   uint8_t len = this->subscribePacket(sub->topic.c_str(), 0);
@@ -370,9 +370,9 @@ bool Arduino_MQTT_Looped::mqttSubscribeInc(void) {
 
 bool Arduino_MQTT_Looped::mqttAnnounce(void) {
   if (this->birth_msg.first != "") {
-    Serial.println(F("Announcing.."));
+    LOG_PRINTLN(F("Announcing.."));
     if (!this->mqttPublish(this->birth_msg.first, this->birth_msg.second)) {
-      Serial.println(F("failed"));
+      LOG_PRINTLN(F("failed"));
       if (!this->wifiClient->connected()) {
         DEBUG_PRINTLN(F("offline"));
         this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
@@ -386,20 +386,22 @@ bool Arduino_MQTT_Looped::mqttAnnounce(void) {
 }
 
 bool Arduino_MQTT_Looped::sendDiscoveries(void) {
+  DEBUG_PRINT(F("Discoveries..."));
   // If there are none to send at the current counter, do nothing.
-  if (!this->discoveries.at(this->discovery_counter)) {
-    Serial.println("Connection okay.");
+  if (this->discovery_counter >= this->discoveries.size()) {
+    LOG_PRINTLN(F("Connection okay."));
     this->status = MQTT_LOOPED_STATUS_OKAY;
     this->discovery_counter = 0;
     return true;
   }
-  Serial.println(F("Sending discovery.."));
+  LOG_PRINTLN(F("sending discovery.."));
   // Send at current counter, then inc and return, wait for next loop.
   this->status = MQTT_LOOPED_STATUS_SENDING_DISCOVERY;
   auto d = this->discoveries.at(this->discovery_counter);
   if (!this->mqttPublish(d->topic, d->payload)) {
-    Serial.println(F("error sending discovery"));
+    LOG_PRINTLN(F("error sending discovery"));
     if (!this->wifiClient->connected()) {
+      this->discovery_counter = 0;
       this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     }
     return false;
@@ -506,19 +508,26 @@ bool Arduino_MQTT_Looped::mqttPublish(String topic, String payload, bool retain,
     if (!this->sendPacket(this->buffer, len)) {
       return false;
     }
-    // If QOS level is high enough verify the response packet.
+    // If QoS is 0, skip waiting for puback.
     if (qos == 0) {
       this->status = MQTT_LOOPED_STATUS_OKAY;
       return true;
     }
     this->status = MQTT_LOOPED_STATUS_READING_PUBACK_PACKET;
+    this->attempts = 0;
     this->readFullPacketUntilComplete();
     return true;
   }
-  else if (this->status == MQTT_LOOPED_STATUS_MQTT_PUBLISHED && qos > 0) {
+  else if (qos > 0) {
     DEBUG_PRINT(F("Publish QOS1+ reply:\t"));
     DEBUG_PRINTBUFFER(this->buffer, this->full_packet_len);
     if (this->full_packet_len != 4) {
+      this->attempts++;
+      DEBUG_PRINTLN(F("Error reading puback"));
+      if (this->attempts > 3) {
+        this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+        this->attempts = 0;
+      }
       return false;
     }
 
@@ -813,6 +822,7 @@ bool Arduino_MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
 bool Arduino_MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   uint16_t ret = 0;
   uint16_t offset = 0;
+  DEBUG_PRINT(F("Sending packet"));
   while (len > 0) {
     // Check we haven't timed out.
     this->send_packet_timer = millis();
@@ -837,7 +847,7 @@ bool Arduino_MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
     offset += ret;
 
     if (ret != sendlen) {
-      DEBUG_PRINTLN("Failed to send packet.");
+      DEBUG_PRINTLN(F("Failed to send packet."));
       return false;
     }
   }
@@ -1036,27 +1046,26 @@ static uint16_t packetAdditionalLen(uint32_t currLen) {
 }
 
 void printBuffer(uint8_t *buffer, uint16_t len) {
-  DEBUG_PRINTER.print('\t');
+  LOG_PRINTER.print('\t');
   for (uint16_t i = 0; i < len; i++) {
     if (isprint(buffer[i]))
-      DEBUG_PRINTER.write(buffer[i]);
+      LOG_PRINTER.write(buffer[i]);
     else
-      DEBUG_PRINTER.print(" ");
-    DEBUG_PRINTER.print(F(" [0x"));
+      LOG_PRINTER.print(" ");
+    LOG_PRINTER.print(F(" [0x"));
     if (buffer[i] < 0x10)
-      DEBUG_PRINTER.print("0");
-    DEBUG_PRINTER.print(buffer[i], HEX);
-    DEBUG_PRINTER.print("], ");
+      LOG_PRINTER.print("0");
+    LOG_PRINTER.print(buffer[i], HEX);
+    LOG_PRINTER.print("], ");
     if (i % 8 == 7) {
-      DEBUG_PRINTER.print("\n\t");
+      LOG_PRINTER.print("\n\t");
     }
   }
-  DEBUG_PRINTER.println();
+  LOG_PRINTER.println();
 }
 
 #if defined(ARDUINO_SAMD_ZERO) || defined(ARDUINO_SAMD_MKR1000) || defined(ARDUINO_SAMD_MKR1010) || defined(ARDUINO_ARCH_SAMD)
-static char *dtostrf(double val, signed char width, unsigned char prec,
-                     char *sout) {
+static char *dtostrf(double val, signed char width, unsigned char prec, char *sout) {
   char fmt[20];
   sprintf(fmt, "%%%d.%df", width, prec);
   sprintf(sout, fmt, val);

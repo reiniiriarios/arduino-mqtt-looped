@@ -80,10 +80,11 @@ using namespace std;
 // ------------------------------------------- DEBUGGERY -------------------------------------------
 
 // Uncomment/comment to turn on/off debug output messages.
-// #define MQTT_DEBUG
+#define MQTT_LOG
+#define MQTT_DEBUG
 
 // Set where debug messages will be printed.
-#define DEBUG_PRINTER Serial
+#define LOG_PRINTER Serial
 // If using something like Zero or Due, change the above to SerialUSB
 
 /**
@@ -97,9 +98,19 @@ using namespace std;
 void printBuffer(uint8_t *buffer, uint16_t len);
 
 // Define actual debug output functions when necessary.
+#ifdef MQTT_LOG
+#define LOG_PRINT(...) { LOG_PRINTER.print(__VA_ARGS__); }
+#define LOG_PRINTLN(...) { LOG_PRINTER.println(__VA_ARGS__); }
+#define LOG_PRINTBUFFER(buffer, len) { printBuffer(buffer, len); }
+#else
+#define LOG_PRINT(...) {}
+#define LOG_PRINTLN(...) {}
+#define LOG_PRINTBUFFER(buffer, len) {}
+#endif
+
 #ifdef MQTT_DEBUG
-#define DEBUG_PRINT(...) { DEBUG_PRINTER.print(__VA_ARGS__); }
-#define DEBUG_PRINTLN(...) { DEBUG_PRINTER.println(__VA_ARGS__); }
+#define DEBUG_PRINT(...) { LOG_PRINTER.print(__VA_ARGS__); }
+#define DEBUG_PRINTLN(...) { LOG_PRINTER.println(__VA_ARGS__); }
 #define DEBUG_PRINTBUFFER(buffer, len) { printBuffer(buffer, len); }
 #else
 #define DEBUG_PRINT(...) {}
