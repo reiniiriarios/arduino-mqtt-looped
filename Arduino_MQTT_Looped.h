@@ -169,8 +169,8 @@ typedef enum {
  * @brief MQTT message.
  */
 typedef struct mqtt_message_t {
-  String topic;
-  String payload;
+  const char* topic;
+  const char* payload;
   uint8_t qos;
   bool retain;
 } mqtt_message_t;
@@ -193,7 +193,7 @@ class MQTTSubscribe {
      * @param topic 
      * @param qos
      */
-    MQTTSubscribe(String topic, uint8_t qos = 0);
+    MQTTSubscribe(const char* topic, uint8_t qos = 0);
 
     /**
      * @brief Set a callback for the subscription.
@@ -210,7 +210,7 @@ class MQTTSubscribe {
     /**
      * @brief Topic.
      */
-    String topic;
+    const char* topic;
 
     /**
      * @brief Quality of Service level.
@@ -359,7 +359,7 @@ class Arduino_MQTT_Looped {
      * @param topic
      * @param payload
      */
-    void setBirth(String topic, String payload);
+    void setBirth(const char* topic, const char* payload);
 
     /**
      * @brief Set the last will and testament.
@@ -371,7 +371,7 @@ class Arduino_MQTT_Looped {
      * @param retain 
      * @return success
      */
-    bool setWill(String topic, String payload, uint8_t qos = 0, bool retain = false);
+    bool setWill(const char* topic, const char* payload, uint8_t qos = 0, bool retain = false);
 
     /**
      * @brief Add a discovery message to send when connected or reconnected to the MQTT broker.
@@ -383,7 +383,7 @@ class Arduino_MQTT_Looped {
      * @param retain 
      * @return success
      */
-    void addDiscovery(String topic, String payload, uint8_t qos = 0, bool retain = false);
+    void addDiscovery(const char* topic, const char* payload, uint8_t qos = 0, bool retain = false);
 
     /**
      * @brief Loop for sending MQTT discovery messages.
@@ -399,7 +399,7 @@ class Arduino_MQTT_Looped {
      * @param topic
      * @param callback
      */
-    void onMqtt(String topic, mqttcallback_t callback);
+    void onMqtt(const char* topic, mqttcallback_t callback);
 
     /**
      * @brief Send MQTT message. Verifies connection before sending.
@@ -409,7 +409,7 @@ class Arduino_MQTT_Looped {
      * @param retain
      * @param qos
      */
-    void mqttSendMessage(String topic, String payload, bool retain = false, uint8_t qos = 0);
+    void mqttSendMessage(const char* topic, const char* payload, bool retain = false, uint8_t qos = 0);
 
   // --------------------##-------------------- PRIVATE ---------------------##---------------------
 
@@ -575,7 +575,7 @@ class Arduino_MQTT_Looped {
     /**
      * @brief Birth topic.
      */
-    std::pair<String, String> birth_msg;
+    std::pair<const char*, const char*> birth_msg;
 
     // ----------------------------------------- MESSAGING -----------------------------------------
 
@@ -588,7 +588,7 @@ class Arduino_MQTT_Looped {
      * @param qos
      * @return success
      */
-    bool mqttPublish(String topic, String payload, bool retain = false, uint8_t qos = 0);
+    bool mqttPublish(const char* topic, const char* payload, bool retain = false, uint8_t qos = 0);
 
     /**
      * @brief Process a single subscription flagged as having a new message.

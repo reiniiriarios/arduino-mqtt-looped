@@ -2,7 +2,7 @@
 
 // -------------------------------------- SUBSCRIPTION CLASS ---------------------------------------
 
-MQTTSubscribe::MQTTSubscribe(String topic, uint8_t qos) : topic(topic), qos(qos) {};
+MQTTSubscribe::MQTTSubscribe(const char* topic, uint8_t qos) : topic(topic), qos(qos) {};
 
 void MQTTSubscribe::setCallback(mqttcallback_t cb) {
   this->callback = cb;
@@ -360,7 +360,7 @@ bool Arduino_MQTT_Looped::mqttSubscribe(void) {
   LOG_PRINTLN(F("MQTT subscribing.."));
   DEBUG_PRINT(sub->topic);
   // Construct and send subscription packet.
-  uint8_t len = this->subscribePacket(sub->topic.c_str(), 0);
+  uint8_t len = this->subscribePacket(sub->topic, 0);
   if (!this->sendPacket(this->buffer, len)) {
     DEBUG_PRINTLN(F("..error sending packet"));
     this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
@@ -463,11 +463,11 @@ bool Arduino_MQTT_Looped::mqttIsActive(void) {
 
 // ------------------------------------------- MESSAGING -------------------------------------------
 
-void Arduino_MQTT_Looped::setBirth(String topic, String payload) {
+void Arduino_MQTT_Looped::setBirth(const char* topic, const char* payload) {
   this->birth_msg = { topic, payload };
 }
 
-bool Arduino_MQTT_Looped::setWill(String topic, String payload, uint8_t qos, bool retain) {
+bool Arduino_MQTT_Looped::setWill(const char* topic, const char* payload, uint8_t qos, bool retain) {
   if (this->mqttIsConnected()) {
     DEBUG_PRINTLN(F("Error: will defined after connect"));
     return false;
@@ -481,7 +481,7 @@ bool Arduino_MQTT_Looped::setWill(String topic, String payload, uint8_t qos, boo
   return true;
 }
 
-void Arduino_MQTT_Looped::addDiscovery(String topic, String payload, uint8_t qos, bool retain) {
+void Arduino_MQTT_Looped::addDiscovery(const char* topic, const char* payload, uint8_t qos, bool retain) {
   if (this->mqttIsConnected()) {
     DEBUG_PRINTLN(F("Error: discovery added after connect"));
     return;
@@ -494,13 +494,13 @@ void Arduino_MQTT_Looped::addDiscovery(String topic, String payload, uint8_t qos
   });
 }
 
-void Arduino_MQTT_Looped::onMqtt(String topic, mqttcallback_t callback) {
+void Arduino_MQTT_Looped::onMqtt(const char* topic, mqttcallback_t callback) {
   MQTTSubscribe* sub = new MQTTSubscribe(topic);
   sub->setCallback(callback);
   this->mqttSubs.push_back(sub);
 }
 
-void Arduino_MQTT_Looped::mqttSendMessage(String topic, String payload, bool retain, uint8_t qos) {
+void Arduino_MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool retain, uint8_t qos) {
   if (!this->wifiClient->connected()) {
     this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     return;
@@ -512,13 +512,12 @@ void Arduino_MQTT_Looped::mqttSendMessage(String topic, String payload, bool ret
   }
 }
 
-bool Arduino_MQTT_Looped::mqttPublish(String topic, String payload, bool retain, uint8_t qos) {
+bool Arduino_MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retain, uint8_t qos) {
   if (this->status != MQTT_LOOPED_STATUS_MQTT_PUBLISHED) {
-    uint8_t* data = (uint8_t *)payload.c_str();
-    uint16_t bLen = strlen(payload.c_str());
-    const char* topic_c = topic.c_str();
+    uint8_t* data = (uint8_t *)payload;
+    uint16_t bLen = strlen(payload);
     // Construct and send publish packet.
-    uint16_t len = this->publishPacket(topic_c, data, bLen, qos, retain);
+    uint16_t len = this->publishPacket(topic, data, bLen, qos, retain);
     if (!this->sendPacket(this->buffer, len)) {
       return false;
     }
@@ -772,11 +771,11 @@ bool Arduino_MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
   MQTTSubscribe* thisSub = nullptr;
   for (auto & sub : mqttSubs) {
     // Skip this subscription if its name length isn't the same as the received topic name.
-    if (sub->topic.length() != topiclen)
+    if (strlen(sub->topic) != topiclen)
       continue;
     // Stop if the subscription topic matches the received topic. Be careful
     // to make comparison case insensitive.
-    if (strncasecmp((char *)this->buffer + topicstart, sub->topic.c_str(), topiclen) == 0) {
+    if (strncasecmp((char *)this->buffer + topicstart, sub->topic, topiclen) == 0) {
       DEBUG_PRINT(F("Found sub #"));
       DEBUG_PRINTLN(i);
       if (sub->new_message) {
@@ -923,8 +922,8 @@ uint8_t Arduino_MQTT_Looped::connectPacket(void) {
   }
 
   if (this->will.topic) {
-    p = stringprint(p, this->will.topic.c_str());
-    p = stringprint(p, this->will.payload.c_str());
+    p = stringprint(p, this->will.topic);
+    p = stringprint(p, this->will.payload);
   }
 
   p = stringprint(p, this->mqtt_user);
