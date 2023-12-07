@@ -2,8 +2,8 @@
 // ** Currently WiFiNINA is the only tested library. **
 #include <WiFiNINA.h>
 // Include this library.
-// #include <Arduino_MQTT_Looped.h>
-#include "../Arduino_MQTT_Looped.h"
+#include <Arduino_MQTT_Looped.h>
+// #include "../Arduino_MQTT_Looped.h"
 
 // Set up your secrets in a different file.
 #define SSID "your_wifi_network"
@@ -60,7 +60,7 @@ void setup() {
   });
 
   // Discoveries should be sent when the broker announces it is online.
-  mqttLooped->onMqtt("homeassistant/status", [&](char* payload, uint8_t /*len*/){
+  mqttLooped.onMqtt("homeassistant/status", [&](char* payload, uint8_t /*len*/){
     if (strcmp(payload, "online") == 0) {
       mqttLooped.sendDiscoveries();
     }
