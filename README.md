@@ -23,4 +23,4 @@ methods could likely be simplified or removed from the loop.
 
 ## Usage
 
-See [examples](./examples/basic.ino) for example usage.
+See [examples](./examples/basic/basic.ino) for example usage.
