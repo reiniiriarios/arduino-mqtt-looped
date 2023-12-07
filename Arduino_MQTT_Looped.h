@@ -365,6 +365,13 @@ class Arduino_MQTT_Looped {
     void addDiscovery(String topic, String payload, uint8_t qos = 0, bool retain = false);
 
     /**
+     * @brief Loop for sending MQTT discovery messages.
+     * 
+     * @return success
+     */
+    bool sendDiscoveries(void);
+
+    /**
      * @brief MQTT hook.
      *        Set before connecting.
      *
@@ -655,13 +662,6 @@ class Arduino_MQTT_Looped {
      * @return success
      */
     bool mqttAnnounce(void);
-
-    /**
-     * @brief Loop for sending MQTT discovery messages.
-     * 
-     * @return success
-     */
-    bool sendDiscoveries(void);
 
     // ------------------------------------ PACKET PROCESSING --------------------------------------
 
