@@ -298,15 +298,6 @@ class Arduino_MQTT_Looped {
         : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
 
     /**
-     * @brief Set the Airlift onboard LED to a specific color.
-     * 
-     * @param r 
-     * @param g 
-     * @param b 
-     */
-    void setLED(uint8_t r, uint8_t g, uint8_t b);
-
-    /**
      * @brief Get status.
      * 
      * @return status enum
