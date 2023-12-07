@@ -1,4 +1,4 @@
-#include "Arduino_MQTT_Looped.h"
+#include "MQTT_Looped.h"
 
 // -------------------------------------- SUBSCRIPTION CLASS ---------------------------------------
 
@@ -10,7 +10,7 @@ void MQTTSubscribe::setCallback(mqttcallback_t cb) {
 
 // ------------------------------------------ MAIN CLASS -------------------------------------------
 
-Arduino_MQTT_Looped::Arduino_MQTT_Looped(
+MQTT_Looped::MQTT_Looped(
   WiFiClient* client,
   const char* ssid,
   const char* wifi_pass,
@@ -33,16 +33,16 @@ Arduino_MQTT_Looped::Arduino_MQTT_Looped(
   this->_sock = &(this->wifiClient->*robbed<WiFiClientSock>::ptr);
 }
 
-mqtt_looped_status_t Arduino_MQTT_Looped::getStatus(void) {
+mqtt_looped_status_t MQTT_Looped::getStatus(void) {
   return this->status;
 }
 
 // ------------------------------------------- MAIN LOOP -------------------------------------------
 
-void Arduino_MQTT_Looped::loop(void) {
+void MQTT_Looped::loop(void) {
   // if (this->status != MQTT_LOOPED_STATUS_OKAY) {
   //   // Prints a lot.
-  //   DEBUG_PRINT(F("Arduino_MQTT_Looped: "));
+  //   DEBUG_PRINT(F("MQTT_Looped: "));
   //   DEBUG_PRINTLN(this->status);
   // }
   switch (this->status) {
@@ -109,7 +109,7 @@ void Arduino_MQTT_Looped::loop(void) {
       this->processSubscriptionQueue();
       return;
     default:
-      LOG_PRINT("Error: Unrecognized Arduino_MQTT_Looped status: ");
+      LOG_PRINT("Error: Unrecognized MQTT_Looped status: ");
       LOG_PRINTLN(this->status);
     case MQTT_LOOPED_STATUS_OKAY:
       // If something is available and there's no current status, it might be a subscription packet.
@@ -133,7 +133,7 @@ void Arduino_MQTT_Looped::loop(void) {
 
 // ---------------------------- CONNECTION LOOP - CLOSE SOCKET, RESTART ----------------------------
 
-bool Arduino_MQTT_Looped::closeConnection(bool wifi_connected) {
+bool MQTT_Looped::closeConnection(bool wifi_connected) {
   if (*this->_sock != NO_SOCKET_AVAIL) {
     DEBUG_PRINTLN(F("Closing socket..."));
     ServerDrv::stopClient(*this->_sock);
@@ -147,7 +147,7 @@ bool Arduino_MQTT_Looped::closeConnection(bool wifi_connected) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::closeSocket(bool wifi_connected) {
+bool MQTT_Looped::closeSocket(bool wifi_connected) {
   // @todo Abstract away from WiFi client.
   if (wifiClient->status() != CLOSED) {
     DEBUG_PRINTLN(F("Socket closing..."));
@@ -164,7 +164,7 @@ bool Arduino_MQTT_Looped::closeSocket(bool wifi_connected) {
 
 // ------------------------------------ CONNECTION LOOP - WIFI -------------------------------------
 
-bool Arduino_MQTT_Looped::wifiSetup(void) {
+bool MQTT_Looped::wifiSetup(void) {
   // If the socket isn't closed, close it and wait for the next loop.
   if (!this->closeConnection(false)) {
     return false;
@@ -183,7 +183,7 @@ bool Arduino_MQTT_Looped::wifiSetup(void) {
   return false;
 }
 
-bool Arduino_MQTT_Looped::wifiConnect(void) {
+bool MQTT_Looped::wifiConnect(void) {
   int8_t wifiStatus = WiFiDrv::getConnectionStatus();
   switch (wifiStatus) {
     case WL_CONNECTED:
@@ -212,7 +212,7 @@ bool Arduino_MQTT_Looped::wifiConnect(void) {
 
 // ------------------------------------ CONNECTION LOOP - MQTT -------------------------------------
 
-bool Arduino_MQTT_Looped::mqttConnect(void) {
+bool MQTT_Looped::mqttConnect(void) {
   // We're reconnecting, so close the old connection first if open.
   if (*this->_sock != NO_SOCKET_AVAIL) {
     if (!this->closeConnection(true)) {
@@ -239,7 +239,7 @@ bool Arduino_MQTT_Looped::mqttConnect(void) {
   return false;
 }
 
-bool Arduino_MQTT_Looped::waitOnConnection(void) {
+bool MQTT_Looped::waitOnConnection(void) {
   if (this->wifiClient->connected()) {
     LOG_PRINT(F("Connected to MQTT server, status: "));
     // @todo Abstract away from WiFi client.
@@ -261,7 +261,7 @@ bool Arduino_MQTT_Looped::waitOnConnection(void) {
   return false;
 }
 
-bool Arduino_MQTT_Looped::waitAfterConnection(void) {
+bool MQTT_Looped::waitAfterConnection(void) {
   if (millis() - this->timer > 3000) {
     this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTION_SUCCESS;
     this->timer = 0;
@@ -270,7 +270,7 @@ bool Arduino_MQTT_Looped::waitAfterConnection(void) {
   return false;
 }
 
-bool Arduino_MQTT_Looped::mqttConnectBroker() {
+bool MQTT_Looped::mqttConnectBroker() {
   LOG_PRINT(F("MQTT connecting to broker..."));
   // Check attempts.
   this->attempts++;
@@ -294,7 +294,7 @@ bool Arduino_MQTT_Looped::mqttConnectBroker() {
   return true;
 }
 
-bool Arduino_MQTT_Looped::confirmConnectToBroker() {
+bool MQTT_Looped::confirmConnectToBroker() {
   this->attempts = 0;
   if (this->full_packet_len != 4) {
     DEBUG_PRINT(F("err read packet.."));
@@ -321,7 +321,7 @@ bool Arduino_MQTT_Looped::confirmConnectToBroker() {
   return true;
 }
 
-bool Arduino_MQTT_Looped::mqttSubscribe(void) {
+bool MQTT_Looped::mqttSubscribe(void) {
   // If already in this loop, move to the next item.
   if (this->status == MQTT_LOOPED_STATUS_MQTT_SUBSCRIBING) {
     this->attempts = 0;
@@ -371,7 +371,7 @@ bool Arduino_MQTT_Looped::mqttSubscribe(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::mqttSubscribeInc(void) {
+bool MQTT_Looped::mqttSubscribeInc(void) {
   this->attempts = 0;
   ++this->subscription_counter;
   if (this->subscription_counter >= this->mqttSubs.size()) {
@@ -382,7 +382,7 @@ bool Arduino_MQTT_Looped::mqttSubscribeInc(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::mqttAnnounce(void) {
+bool MQTT_Looped::mqttAnnounce(void) {
   if (this->birth_msg.first != "") {
     LOG_PRINTLN(F("Announcing.."));
     if (!this->mqttPublish(this->birth_msg.first, this->birth_msg.second)) {
@@ -399,7 +399,7 @@ bool Arduino_MQTT_Looped::mqttAnnounce(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::sendDiscoveries(void) {
+bool MQTT_Looped::sendDiscoveries(void) {
   DEBUG_PRINT(F("Discoveries..."));
   // If there are none to send at the current counter, do nothing.
   if (this->discovery_counter >= this->discoveries.size()) {
@@ -424,7 +424,7 @@ bool Arduino_MQTT_Looped::sendDiscoveries(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::processSubscriptionQueue(void) {
+bool MQTT_Looped::processSubscriptionQueue(void) {
   for (auto & sub : this->mqttSubs) {
     if (sub->new_message) {
       sub->callback((char *)sub->lastread, sub->datalen);
@@ -437,7 +437,7 @@ bool Arduino_MQTT_Looped::processSubscriptionQueue(void) {
 
 // --------------------------------------- CONNECTION STATUS ---------------------------------------
 
-bool Arduino_MQTT_Looped::verifyConnection(void) {
+bool MQTT_Looped::verifyConnection(void) {
   // Construct and send ping packet.
   this->buffer[0] = MQTT_CTRL_PINGREQ << 4;
   this->buffer[1] = 0;
@@ -449,25 +449,25 @@ bool Arduino_MQTT_Looped::verifyConnection(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::wifiIsConnected(void) {
+bool MQTT_Looped::wifiIsConnected(void) {
   return (int)this->status >= (int)MQTT_LOOPED_STATUS_WIFI_CONNECTED;
 }
 
-bool Arduino_MQTT_Looped::mqttIsConnected(void) {
+bool MQTT_Looped::mqttIsConnected(void) {
   return (int)this->status >= (int)MQTT_LOOPED_STATUS_OKAY;
 }
 
-bool Arduino_MQTT_Looped::mqttIsActive(void) {
+bool MQTT_Looped::mqttIsActive(void) {
   return (int)this->status > (int)MQTT_LOOPED_STATUS_OKAY;
 }
 
 // ------------------------------------------- MESSAGING -------------------------------------------
 
-void Arduino_MQTT_Looped::setBirth(const char* topic, const char* payload) {
+void MQTT_Looped::setBirth(const char* topic, const char* payload) {
   this->birth_msg = { topic, payload };
 }
 
-bool Arduino_MQTT_Looped::setWill(const char* topic, const char* payload, uint8_t qos, bool retain) {
+bool MQTT_Looped::setWill(const char* topic, const char* payload, uint8_t qos, bool retain) {
   if (this->mqttIsConnected()) {
     DEBUG_PRINTLN(F("Error: will defined after connect"));
     return false;
@@ -481,7 +481,7 @@ bool Arduino_MQTT_Looped::setWill(const char* topic, const char* payload, uint8_
   return true;
 }
 
-void Arduino_MQTT_Looped::addDiscovery(const char* topic, const char* payload, uint8_t qos, bool retain) {
+void MQTT_Looped::addDiscovery(const char* topic, const char* payload, uint8_t qos, bool retain) {
   if (this->mqttIsConnected()) {
     DEBUG_PRINTLN(F("Error: discovery added after connect"));
     return;
@@ -494,13 +494,13 @@ void Arduino_MQTT_Looped::addDiscovery(const char* topic, const char* payload, u
   });
 }
 
-void Arduino_MQTT_Looped::onMqtt(const char* topic, mqttcallback_t callback) {
+void MQTT_Looped::onMqtt(const char* topic, mqttcallback_t callback) {
   MQTTSubscribe* sub = new MQTTSubscribe(topic);
   sub->setCallback(callback);
   this->mqttSubs.push_back(sub);
 }
 
-void Arduino_MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool retain, uint8_t qos) {
+void MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool retain, uint8_t qos) {
   if (!this->wifiClient->connected()) {
     this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     return;
@@ -512,7 +512,7 @@ void Arduino_MQTT_Looped::mqttSendMessage(const char* topic, const char* payload
   }
 }
 
-bool Arduino_MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retain, uint8_t qos) {
+bool MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retain, uint8_t qos) {
   if (this->status != MQTT_LOOPED_STATUS_MQTT_PUBLISHED) {
     uint8_t* data = (uint8_t *)payload;
     uint16_t bLen = strlen(payload);
@@ -559,7 +559,7 @@ bool Arduino_MQTT_Looped::mqttPublish(const char* topic, const char* payload, bo
 
 // -------------------------------------- PACKET PROCESSING ----------------------------------------
 
-void Arduino_MQTT_Looped::readFullPacketUntilComplete(void) {
+void MQTT_Looped::readFullPacketUntilComplete(void) {
   // Check we haven't timed out.
   if (this->read_packet_jump_to > 0 && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
     DEBUG_PRINT(F("timed out.."));
@@ -704,7 +704,7 @@ void Arduino_MQTT_Looped::readFullPacketUntilComplete(void) {
   this->last_con_verify = millis();
 }
 
-bool Arduino_MQTT_Looped::readPacketUntilComplete(void) {
+bool MQTT_Looped::readPacketUntilComplete(void) {
   // Check we haven't timed out.
   if (this->reading_packet && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
     DEBUG_PRINT(F("..timed out.."));
@@ -740,7 +740,7 @@ bool Arduino_MQTT_Looped::readPacketUntilComplete(void) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
+bool MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
   uint16_t i, topiclen, datalen;
 
   if (!len) {
@@ -832,7 +832,7 @@ bool Arduino_MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
   return true;
 }
 
-bool Arduino_MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
+bool MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   uint16_t ret = 0;
   uint16_t offset = 0;
   DEBUG_PRINT(F("Sending packet"));
@@ -868,7 +868,7 @@ bool Arduino_MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   return true;
 }
 
-uint8_t Arduino_MQTT_Looped::connectPacket(void) {
+uint8_t MQTT_Looped::connectPacket(void) {
   uint8_t *p = this->buffer;
   uint16_t len;
 
@@ -937,7 +937,7 @@ uint8_t Arduino_MQTT_Looped::connectPacket(void) {
   return len;
 }
 
-uint16_t Arduino_MQTT_Looped::publishPacket(const char *topic, uint8_t *data, uint16_t bLen, uint8_t qos, bool retain) {
+uint16_t MQTT_Looped::publishPacket(const char *topic, uint8_t *data, uint16_t bLen, uint8_t qos, bool retain) {
   uint8_t *p = this->buffer;
   uint16_t len = 0;
   uint16_t maxPacketLen = (uint16_t)sizeof(this->buffer);
@@ -1003,7 +1003,7 @@ uint16_t Arduino_MQTT_Looped::publishPacket(const char *topic, uint8_t *data, ui
   return len;
 }
 
-uint8_t Arduino_MQTT_Looped::subscribePacket(const char *topic, uint8_t qos) {
+uint8_t MQTT_Looped::subscribePacket(const char *topic, uint8_t qos) {
   uint8_t *p = this->buffer;
   uint16_t len;
 

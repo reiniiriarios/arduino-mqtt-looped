@@ -2,8 +2,8 @@
 // ** Currently WiFiNINA is the only tested library. **
 #include <WiFiNINA.h>
 // Include this library.
-#include <Arduino_MQTT_Looped.h>
-// #include "../Arduino_MQTT_Looped.h"
+#include <MQTT_Looped.h>
+// #include "../MQTT_Looped.h"
 
 // Set up your secrets in a different file.
 #define SSID "your_wifi_network"
@@ -15,9 +15,9 @@
 const char* discoveryJson = "{ discovery message goes here }";
 
 // Create and configure.
-Arduino_MQTT_Looped mqttLooped(
+MQTT_Looped mqttLooped(
   // The WiFi client likely needs no configuration. The SSID and Password will be set
-  // by the Arduino_MQTT_Looped class.
+  // by the MQTT_Looped class.
   new WiFiClient(),
   // Your WiFi network name and password.
   SSID,

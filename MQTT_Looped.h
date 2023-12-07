@@ -1,5 +1,5 @@
-#ifndef ARDUINO_MQTT_LOOPED_H
-#define ARDUINO_MQTT_LOOPED_H
+#ifndef MQTT_LOOPED_LIB_H
+#define MQTT_LOOPED_LIB_H
 
 #include <functional>
 #include <vector>
@@ -121,7 +121,7 @@ void printBuffer(uint8_t *buffer, uint16_t len);
 // -------------------------------------------- TYPEDEF --------------------------------------------
 
 /**
- * @brief Arduino_MQTT_Looped connection status.
+ * @brief MQTT_Looped connection status.
  */
 typedef enum {
   // Startup
@@ -268,34 +268,34 @@ template class rob<WiFiClientSock, &WiFiClient::_sock>;
  * @brief This class manages WiFi connection and MQTT broker connection as well
  *        as handles MQTT subscription callbacks.
  */
-class Arduino_MQTT_Looped {
+class MQTT_Looped {
   public:
     /**
      * @brief Constructor.
      */
-    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
+    MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
       uint16_t port = 1883, const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino");
 
     /**
      * @brief Constructor.
      */
-    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
+    MQTT_Looped(WiFiClient* client, const char* ssid, const char* wifi_pass, IPAddress* mqtt_server,
       const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
-        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
+        : MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
 
     /**
      * @brief Constructor.
      */
-    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
+    MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
       uint16_t port = 1883, const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
-        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, port, mqtt_user, mqtt_pass, mqtt_client_id) {}
+        : MQTT_Looped(client, ssid, wifi_pass, mqtt_server, port, mqtt_user, mqtt_pass, mqtt_client_id) {}
 
     /**
      * @brief Constructor.
      */
-    Arduino_MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
+    MQTT_Looped(WiFiClient* client, const char* ssid, IPAddress* mqtt_server,
       const char* mqtt_user = "", const char* mqtt_pass = "", const char* mqtt_client_id = "Arduino")
-        : Arduino_MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
+        : MQTT_Looped(client, ssid, wifi_pass, mqtt_server, 1883, mqtt_user, mqtt_pass, mqtt_client_id) {}
 
     /**
      * @brief Get status.
@@ -408,7 +408,7 @@ class Arduino_MQTT_Looped {
     // ------------------------------------- GENERAL PROPS -----------------------------------------
 
     /**
-     * @brief Current status of Arduino_MQTT_Looped connections.
+     * @brief Current status of MQTT_Looped connections.
      */
     mqtt_looped_status_t status = MQTT_LOOPED_STATUS_INIT;
 
