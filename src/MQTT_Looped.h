@@ -12,7 +12,10 @@ using namespace std;
 // ---------------------------------------- TIMING CONFIG ------------------------------------------
 
 // Timeout for reading packets.
-#define READ_PACKET_TIMEOUT 750
+#define READ_PACKET_TIMEOUT 1000
+
+// Timeout for looking for a packet.
+#define READ_PACKET_SEARCH_TIMEOUT 1500
 
 // Timeout for sending packets.
 #define SEND_PACKET_TIMEOUT 750
@@ -81,7 +84,7 @@ using namespace std;
 
 // Uncomment/comment to turn on/off debug output messages.
 #define MQTT_LOG
-// #define MQTT_DEBUG
+#define MQTT_DEBUG
 
 // Set where debug messages will be printed.
 #define LOG_PRINTER Serial
@@ -155,7 +158,6 @@ typedef enum {
   MQTT_LOOPED_STATUS_READING_PUBACK_PACKET = 55,
   MQTT_LOOPED_STATUS_READING_SUB_PACKET = 54,
   MQTT_LOOPED_STATUS_READING_PING_PACKET = 51,
-  MQTT_LOOPED_STATUS_READING_PACKET = 52,
   MQTT_LOOPED_STATUS_SENDING_DISCOVERY = 56,
   MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ = 60,
   MQTT_LOOPED_STATUS_SUBSCRIPTION_IN_QUEUE = 61,
@@ -482,11 +484,6 @@ class MQTT_Looped {
     uint8_t buffer[MAXBUFFERSIZE];
 
     /**
-     * @brief Flag for whether we are currently reading a full packet.
-     */
-    bool reading_full_packet = false;
-
-    /**
      * @brief Flag for whether we are currently reading part of a packet.
      */
     bool reading_packet = false;
@@ -504,9 +501,19 @@ class MQTT_Looped {
     uint32_t read_packet_timer;
 
     /**
+     * @brief Timer for reading a packet in a loop. Controls timeout.
+     */
+    uint32_t read_packet_search_timer;
+
+    /**
+     * @brief Whether we're looking for a packet.
+     */
+    bool read_packet_search = false;
+
+    /**
      * @brief ID for counting packets.
      */
-    uint16_t packet_id_counter;
+    uint16_t packet_id_counter = 1;
 
     /**
      * @brief Buffer for processing packet.
@@ -517,6 +524,16 @@ class MQTT_Looped {
      * @brief Buffer for reading packet.
      */
     uint8_t* read_packet_buf;
+
+    /**
+     * @brief Intermediate data while reading packet.
+     */
+    uint32_t read_packet_value;
+
+    /**
+     * @brief Intermediate helper while reading packet.
+     */
+    uint32_t read_packet_multiplier;
 
     /**
      * @brief Max length of packet being read.
@@ -685,7 +702,12 @@ class MQTT_Looped {
     /**
      * @brief Stepped loop for reading a full packet.
      */
-    void readFullPacketUntilComplete(void);
+    void readFullPacketSearch(void);
+
+    /**
+     * @brief Stepped loop for reading a full packet.
+     */
+    void readFullPacket(void);
 
     /**
      * @brief Read MQTT packet from the server. Will read up to maxlen bytes and store
@@ -695,7 +717,14 @@ class MQTT_Looped {
      *
      * @return finished reading packet or timed out
      */
-    bool readPacketUntilComplete(void);
+    bool readPacket(void);
+
+    /**
+     * @brief Set current status based on packet type received.
+     *
+     * @param packetType 
+     */
+    void setStatusByPacket(uint8_t packetType);
 
     /**
      * @brief Send data to the server specified by the buffer and length of data.
@@ -711,12 +740,11 @@ class MQTT_Looped {
     /**
      * @brief Handles a single subscription packet received.
      *
-     * @param len 
      * @return success
      *
      * @see https://github.com/adafruit/Adafruit_MQTT_Library
      */
-    bool handleSubscriptionPacket(uint16_t len);
+    bool handleSubscriptionPacket(void);
 
     /**
      * @brief Generate a connection packet.

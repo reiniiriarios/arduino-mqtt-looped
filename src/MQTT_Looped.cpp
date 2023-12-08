@@ -48,14 +48,17 @@ void MQTT_Looped::loop(void) {
   switch (this->status) {
     case MQTT_LOOPED_STATUS_INIT:
     case MQTT_LOOPED_STATUS_WIFI_OFFLINE:
+      // Basic setup.
       this->wifiSetup();
       return;
     case MQTT_LOOPED_STATUS_WIFI_READY:
+      // Connect to local network.
       this->wifiConnect();
       return;
     case MQTT_LOOPED_STATUS_WIFI_CONNECTED:
     case MQTT_LOOPED_STATUS_MQTT_DISCONNECTED:
     case MQTT_LOOPED_STATUS_MQTT_OFFLINE:
+      // Connect to server over WiFi.
       this->mqttConnect();
       return;
     case MQTT_LOOPED_STATUS_WIFI_CLOSING_SOCKET:
@@ -71,63 +74,68 @@ void MQTT_Looped::loop(void) {
       this->closeConnection(true);
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTING:
+      // Wait for connection to establish.
       this->waitOnConnection();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTION_WAIT:
+      // After connecting to server, delay a few seconds to establish connection.
       this->waitAfterConnection();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTION_SUCCESS:
+      // After connecting to the server, make the MQTT broker connection.
       this->mqttConnectBroker();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER:
+      // Confirm connection to the broker.
       this->confirmConnectToBroker();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTION_CONFIRMED:
     case MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL:
     case MQTT_LOOPED_STATUS_MQTT_SUBSCRIBING:
+      // Subscribe to each subscription, one per loop.
       this->mqttSubscribe();
       return;
     case MQTT_LOOPED_STATUS_MQTT_SUBSCRIBED:
+      // Send the birth/announcement that we're online.
       this->mqttAnnounce();
       return;
     case MQTT_LOOPED_STATUS_MQTT_ANNOUNCED:
     case MQTT_LOOPED_STATUS_SENDING_DISCOVERY:
+      // Send discoveries, if any, one per loop.
       this->sendDiscoveries();
       return;
     case MQTT_LOOPED_STATUS_READING_CONACK_PACKET:
-    case MQTT_LOOPED_STATUS_READING_SUBACK_PACKET:
     case MQTT_LOOPED_STATUS_READING_SUB_PACKET:
+      // Keep looping until we read one full packet.
+      this->readFullPacket();
+      return;
+    case MQTT_LOOPED_STATUS_READING_SUBACK_PACKET:
+    case MQTT_LOOPED_STATUS_READING_PUBACK_PACKET:
     case MQTT_LOOPED_STATUS_READING_PING_PACKET:
-    case MQTT_LOOPED_STATUS_READING_PACKET:
-      this->readFullPacketUntilComplete();
+      // Keep looping until we read a specific packet or we time out.
+      this->readFullPacketSearch();
       return;
     case MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ:
-      this->handleSubscriptionPacket(this->full_packet_len); // @todo remove param
-      this->full_packet_len = 0; // @todo move this into method
+      // If we've read a subscription packet, process the contents.
+      this->handleSubscriptionPacket();
       return;
-    case MQTT_LOOPED_STATUS_SUBSCRIPTION_IN_QUEUE:
-      this->processSubscriptionQueue();
-      return;
-    default:
-      LOG_PRINT("Error: Unrecognized MQTT_Looped status: ");
-      LOG_PRINTLN(this->status);
     case MQTT_LOOPED_STATUS_OKAY:
-      // If something is available and there's no current status, it might be a subscription packet.
-      if (this->wifiClient->available()) {
-        this->status = MQTT_LOOPED_STATUS_READING_SUB_PACKET;
-        this->readFullPacketUntilComplete();
-        return;
-      }
-      // Check connection.
-      if (!this->wifiClient->connected()) {
-        this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
-        return;
-      }
       // Verify connection every so often.
       if (millis() - this->last_con_verify > VERIFY_TIMEOUT) {
         this->verifyConnection();
         return;
       }
+      // If there's any read subscription to process, process one and loop.
+      if (this->processSubscriptionQueue()) {
+        return;
+      }
+      // If not doing anything else, look for subscription packets next loop.
+      // this->status = MQTT_LOOPED_STATUS_READING_SUB_PACKET;
+      return;
+    default:
+      LOG_PRINT("Error: Unrecognized MQTT_Looped status: ");
+      LOG_PRINTLN(this->status);
+      this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
   }
 }
 
@@ -275,7 +283,7 @@ bool MQTT_Looped::mqttConnectBroker() {
   // Check attempts.
   this->attempts++;
   if (this->attempts >= 5 || !this->wifiClient->connected()) {
-    DEBUG_PRINT(F("error.."));
+    DEBUG_PRINTLN(F("error"));
     this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
     this->attempts = 0;
     return false;
@@ -283,14 +291,13 @@ bool MQTT_Looped::mqttConnectBroker() {
   // Construct and send connect packet.
   uint8_t len = this->connectPacket();
   if (!this->sendPacket(this->buffer, len)) {
-    DEBUG_PRINT(F("err send packet.."));
+    DEBUG_PRINTLN(F("err send packet"));
     // If we err here, we try again and fail after n attempts.
     return false;
   }
   // Read connect response packet and verify it
   this->status = MQTT_LOOPED_STATUS_READING_CONACK_PACKET;
-  DEBUG_PRINT(F("reading conack.."));
-  this->readFullPacketUntilComplete();
+  DEBUG_PRINTLN(F("Reading conack"));
   return true;
 }
 
@@ -367,7 +374,6 @@ bool MQTT_Looped::mqttSubscribe(void) {
     return false;
   }
   this->status = MQTT_LOOPED_STATUS_READING_SUBACK_PACKET;
-  this->readFullPacketUntilComplete();
   return true;
 }
 
@@ -385,7 +391,8 @@ bool MQTT_Looped::mqttSubscribeInc(void) {
 bool MQTT_Looped::mqttAnnounce(void) {
   if (this->birth_msg.first != "") {
     LOG_PRINTLN(F("Announcing.."));
-    if (!this->mqttPublish(this->birth_msg.first, this->birth_msg.second)) {
+    // QoS is 0, so we don't wait on a puback.
+    if (!this->mqttPublish(this->birth_msg.first, this->birth_msg.second, false, 0)) {
       LOG_PRINTLN(F("failed"));
       if (!this->wifiClient->connected()) {
         DEBUG_PRINTLN(F("offline"));
@@ -521,14 +528,13 @@ bool MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retai
     if (!this->sendPacket(this->buffer, len)) {
       return false;
     }
+    this->attempts = 0;
     // If QoS is 0, skip waiting for puback.
     if (qos == 0) {
       this->status = MQTT_LOOPED_STATUS_OKAY;
       return true;
     }
     this->status = MQTT_LOOPED_STATUS_READING_PUBACK_PACKET;
-    this->attempts = 0;
-    this->readFullPacketUntilComplete();
     return true;
   }
   else if (qos > 0) {
@@ -559,10 +565,105 @@ bool MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retai
 
 // -------------------------------------- PACKET PROCESSING ----------------------------------------
 
-void MQTT_Looped::readFullPacketUntilComplete(void) {
+void MQTT_Looped::readFullPacketSearch(void) {
+  // Start timer.
+  if (!this->read_packet_search) {
+    this->read_packet_search_timer = millis();
+    this->read_packet_search = true;
+  }
+  // Check timeout.
+  if (this->read_packet_search && millis() - this->read_packet_search_timer > READ_PACKET_SEARCH_TIMEOUT) {
+    DEBUG_PRINTLN(F("..search timed out.."));
+    this->read_packet_search = false;
+    if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
+      this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
+    } else if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
+      // 
+      this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
+    } else if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
+      this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+    } else {
+      DEBUG_PRINTLN(F("This is a weird place to be.")); // should never be called
+      this->status = MQTT_LOOPED_STATUS_OKAY;
+    }
+    return; // = done
+  }
+  // Read a full packet.
+  this->readFullPacket();
+  // If the readFullPacket loop has come back around to -1, the start, we've either finished
+  // reading a full packet or something borked and we were kicked out of the loop.
+  if (this->read_packet_jump_to == -1) {
+    // If we didn't read anything, something might be wrong.
+    if (this->full_packet_len == 0) {
+      DEBUG_PRINTLN(F("search: no packet len"));
+      if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
+        this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
+      } else if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
+        this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
+      }
+      return;
+    }
+    uint8_t packetType = this->buffer[0] >> 4;
+    switch (packetType) {
+      case 0: // no packet, keep trying
+        this->full_packet_len = 0;
+        DEBUG_PRINT(".");
+        return;
+      // Looking for the following:
+      case MQTT_CTRL_SUBACK:
+        if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
+          this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIBING;
+        }
+        return;
+      case MQTT_CTRL_PUBACK:
+        if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
+          this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
+        }
+        return;
+      case MQTT_CTRL_PINGRESP:
+        if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
+          this->status = MQTT_LOOPED_STATUS_OKAY;
+        }
+        return;
+      // Probably not looking for the following:
+      case MQTT_CTRL_CONNECTACK:
+        if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
+          this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER;
+        }
+        return;
+      // Not looking for the following, but process if we read it:
+      case MQTT_CTRL_PUBLISH:
+        this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ;
+        return;
+      // Not looking for these:
+      case MQTT_CTRL_CONNECT:     // send only
+      case MQTT_CTRL_DISCONNECT:  // send only
+      case MQTT_CTRL_PINGREQ:     // send only
+      case MQTT_CTRL_SUBSCRIBE:   // send only
+      case MQTT_CTRL_UNSUBSCRIBE: // unused
+      case MQTT_CTRL_UNSUBACK:    // unused
+      case MQTT_CTRL_PUBREC:      // unused
+      case MQTT_CTRL_PUBREL:      // unused
+      case MQTT_CTRL_PUBCOMP:     // unused
+        DEBUG_PRINT(F("unexpected packet: "));
+        DEBUG_PRINTLN(packetType);
+        this->full_packet_len = 0;
+        break;
+      default:
+        DEBUG_PRINT(F("unrecognized packet: "));
+        DEBUG_PRINTLN(packetType);
+        this->full_packet_len = 0;
+    }
+  }
+}
+
+void MQTT_Looped::readFullPacket(void) {
   // Check we haven't timed out.
   if (this->read_packet_jump_to > 0 && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
-    DEBUG_PRINT(F("timed out.."));
+    DEBUG_PRINT(F("reading packet timed out at step "));
+    DEBUG_PRINT(this->read_packet_jump_to);
+    DEBUG_PRINT(F(", status: "));
+    DEBUG_PRINTLN(this->status);
     // If offline, flag to connect; if connected, flag to reset connection.
     if (!this->wifiClient->connected()) {
       DEBUG_PRINT(F("offline.."));
@@ -571,7 +672,6 @@ void MQTT_Looped::readFullPacketUntilComplete(void) {
       DEBUG_PRINT(F("errors?.."));
       this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
     }
-    this->reading_full_packet = false;
     this->read_packet_jump_to = -1; // giving up, reset timer next time
     return;
   }
@@ -581,23 +681,24 @@ void MQTT_Looped::readFullPacketUntilComplete(void) {
     case -1:
       // start timer
       this->read_packet_timer = millis();
+      this->read_packet_jump_to++;
     case 0:
       // Save input
       this->read_packet_buf = this->buffer;
       this->read_packet_pbuf = this->buffer;
       // init
       this->full_packet_len = 0;
-      this->reading_full_packet = true;
       this->read_packet_maxlen = 1;
       this->read_packet_jump_to++;
     case 1:
-      if (readPacketUntilComplete()) {
+      if (readPacket()) {
         this->read_packet_jump_to++;
       }
-      break;
+      return;
     case 2: // do...(while)
       if (this->read_packet_len != 1) {
-        this->reading_full_packet = false;
+        DEBUG_PRINTLN(F("bad pkt len 1"));
+        this->full_packet_len = 0;
         this->read_packet_jump_to = 0;
         return;
       }
@@ -605,109 +706,75 @@ void MQTT_Looped::readFullPacketUntilComplete(void) {
       DEBUG_PRINTBUFFER(this->read_packet_pbuf, this->read_packet_len);
       this->read_packet_pbuf++;
       this->read_packet_jump_to++;
+      this->read_packet_value = 0;
+      this->read_packet_multiplier = 1;
     case 3:
-      if (readPacketUntilComplete()) {
+      if (readPacket()) {
         this->read_packet_jump_to++;
       }
       break;
     case 4:
       if (this->read_packet_len != 1) {
-        this->reading_full_packet = false;
+        DEBUG_PRINTLN(F("bad pkt len 2"));
+        this->full_packet_len = 0;
+        this->read_packet_jump_to = 0;
         return;
       }
       {
-        uint32_t value = 0;
-        uint32_t multiplier = 1;
         uint8_t encodedByte = this->read_packet_pbuf[0]; // save the last read val
         this->read_packet_pbuf++; // get ready for reading the next byte
-        uint32_t intermediate = encodedByte & 0x7F;
-        intermediate *= multiplier;
-        value += intermediate;
-        multiplier *= 128;
-        if (multiplier > (128UL * 128UL * 128UL)) {
+        uint32_t intermediate = (encodedByte & 0x7F) * this->read_packet_multiplier;
+        this->read_packet_value += intermediate;
+        this->read_packet_multiplier *= 128;
+        if (this->read_packet_multiplier > (128UL * 128UL * 128UL)) {
           DEBUG_PRINT(F("Malformed packet len\n"));
-          this->reading_full_packet = false;
+          this->read_packet_jump_to = -1;
           return;
         }
         if (encodedByte & 0x80) {
-          this->read_packet_jump_to = 2; // (do...) while
-        } else {
-          DEBUG_PRINT(F("Packet Length:\t"));
-          DEBUG_PRINTLN(value);
-          this->read_packet_jump_to++;
+          this->read_packet_jump_to = 3; // (do...) while
+          return;
         }
+        DEBUG_PRINT(F("Packet Length:\t"));
+        DEBUG_PRINTLN(this->read_packet_value);
         // maxsize is limited to 65536 by 16-bit unsigned
         uint16_t sizediff = (MAXBUFFERSIZE - (this->read_packet_pbuf - this->read_packet_buf) - 1);
-        if (value > uint32_t(sizediff)) {
+        if (this->read_packet_value > uint32_t(sizediff)) {
           DEBUG_PRINTLN(F("Packet too big for buffer"));
           this->read_packet_maxlen = sizediff;
         } else {
-          this->read_packet_maxlen = value;
+          this->read_packet_maxlen = this->read_packet_value;
         }
       }
+      this->read_packet_jump_to++;
     case 5:
-      if (readPacketUntilComplete()) {
+      if (readPacket()) {
         this->read_packet_jump_to++;
       }
-      break;
+      return;
     case 6:
-      this->reading_full_packet = false;
-      this->read_packet_jump_to = -1; // read, reset timer next time
       // done
       this->full_packet_len = (this->read_packet_pbuf - this->read_packet_buf) + this->read_packet_len;
-      {
-        uint8_t packetType = (this->read_packet_buf[0] >> 4);
-        switch (packetType) {
-          case MQTT_CTRL_CONNECTACK:
-            if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
-              this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER;
-            }
-            break;
-          case MQTT_CTRL_PUBLISH:
-            this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ;
-            break;
-          case MQTT_CTRL_SUBACK:
-            this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIBING;
-            break;
-          case MQTT_CTRL_PUBACK:
-            if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
-              this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
-            }
-            break;
-          case MQTT_CTRL_PINGRESP:
-            if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
-              this->status = MQTT_LOOPED_STATUS_OKAY;
-            }
-            break;
-          case MQTT_CTRL_CONNECT:     // send only
-          case MQTT_CTRL_DISCONNECT:  // send only
-          case MQTT_CTRL_PINGREQ:     // send only
-          case MQTT_CTRL_SUBSCRIBE:   // send only
-          case MQTT_CTRL_UNSUBSCRIBE: // unused
-          case MQTT_CTRL_UNSUBACK:    // unused
-          case MQTT_CTRL_PUBREC:      // unused
-          case MQTT_CTRL_PUBREL:      // unused
-          case MQTT_CTRL_PUBCOMP:     // unused
-            DEBUG_PRINT(F("Unexpected packet: "));
-            DEBUG_PRINTLN(packetType);
-            break;
-          default:
-            DEBUG_PRINT(F("Unrecognized packet: "));
-            DEBUG_PRINTLN(packetType);
-        }
+      this->last_con_verify = millis();
+      this->read_packet_jump_to = -1; // read, reset timer next time
+      if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
+        this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER; // next step verifies
+      } else if (this->status == MQTT_LOOPED_STATUS_READING_SUB_PACKET) {
+        this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ; // next step processes
       }
-      break;
+      return;
     default:
       DEBUG_PRINT(F("Fell out of packet loop: "));
       DEBUG_PRINTLN(String(this->read_packet_jump_to));
+      this->read_packet_jump_to = -1; // read, reset timer next time
+      this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS; //??
   }
-  this->last_con_verify = millis();
 }
 
-bool MQTT_Looped::readPacketUntilComplete(void) {
+bool MQTT_Looped::readPacket(void) {
   // Check we haven't timed out.
   if (this->reading_packet && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
-    DEBUG_PRINT(F("..timed out.."));
+    DEBUG_PRINT(F("..read timed out.."));
     this->reading_packet = false;
     return true; // = done
   }
@@ -718,30 +785,39 @@ bool MQTT_Looped::readPacketUntilComplete(void) {
   }
   // handle zero-length packets
   if (this->read_packet_maxlen == 0) {
+    this->reading_packet = false;
+    DEBUG_PRINTLN(F("zero maxlen"));
     return true;
   }
   // see if there is any data pending
   if (!this->wifiClient->available()) {
-    // nothing left, finished?
-    this->reading_packet = false;
-    return true;
+    DEBUG_PRINT("-");
+    return false; // if not, wait for it...
   }
   // read packet
   char c = this->wifiClient->read();
-  this->read_packet_pbuf[this->read_packet_len] = c; // ERRRK
+  this->read_packet_pbuf[this->read_packet_len] = c;
   this->read_packet_len++;
   if (this->read_packet_len != this->read_packet_maxlen) {
+    DEBUG_PRINT(".");
     return false;
   }
   // finished
-  DEBUG_PRINT(F("Read data:\t"));
+  DEBUG_PRINT(F("Read packet:\t"));
   DEBUG_PRINTBUFFER(this->read_packet_pbuf, this->read_packet_len);
   this->reading_packet = false;
   return true;
 }
 
-bool MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
+bool MQTT_Looped::handleSubscriptionPacket() {
   uint16_t i, topiclen, datalen;
+  uint16_t len = this->full_packet_len;
+  this->full_packet_len = 0;
+
+  // Whatever happens, happens. If this method fails, we still want to go
+  // back to the normal loop, and we shouldn't have gotten here unless the
+  // previous status is OKAY.
+  this->status = MQTT_LOOPED_STATUS_OKAY;
 
   if (!len) {
     return false; // No data available, just quit.
@@ -835,12 +911,12 @@ bool MQTT_Looped::handleSubscriptionPacket(uint16_t len) {
 bool MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   uint16_t ret = 0;
   uint16_t offset = 0;
-  DEBUG_PRINT(F("Sending packet"));
+  DEBUG_PRINTLN(F("Sending packet"));
   while (len > 0) {
     // Check we haven't timed out.
     this->send_packet_timer = millis();
     if (millis() - this->send_packet_timer > SEND_PACKET_TIMEOUT) {
-      DEBUG_PRINT(F("timed out.."));
+      DEBUG_PRINT(F("sending packet timed out.."));
       // If offline, flag to connect; if connected, flag to reset connection.
       if (!this->wifiClient->connected()) {
         DEBUG_PRINT(F("offline.."));
@@ -856,13 +932,12 @@ bool MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
     ret = this->wifiClient->write(buf + offset, sendlen);
     DEBUG_PRINT(F("Client sendPacket returned: "));
     DEBUG_PRINTLN(ret);
-    len -= ret;
-    offset += ret;
-
     if (ret != sendlen) {
       DEBUG_PRINTLN(F("Failed to send packet."));
       return false;
     }
+    len -= ret;
+    offset += ret;
   }
   this->last_con_verify = millis();
   return true;
