@@ -407,7 +407,7 @@ bool MQTT_Looped::mqttAnnounce(void) {
 }
 
 bool MQTT_Looped::sendDiscoveries(void) {
-  DEBUG_PRINT(F("Discoveries..."));
+  DEBUG_PRINTLN(F("Discoveries..."));
   // If there are none to send at the current counter, do nothing.
   if (this->discovery_counter >= this->discoveries.size()) {
     LOG_PRINTLN(F("Connection okay."));
@@ -415,7 +415,7 @@ bool MQTT_Looped::sendDiscoveries(void) {
     this->discovery_counter = 0;
     return true;
   }
-  LOG_PRINTLN(F("sending discovery.."));
+  LOG_PRINTLN(F("Sending discovery.."));
   // Send at current counter, then inc and return, wait for next loop.
   this->status = MQTT_LOOPED_STATUS_SENDING_DISCOVERY;
   auto d = this->discoveries.at(this->discovery_counter);
@@ -445,6 +445,7 @@ bool MQTT_Looped::processSubscriptionQueue(void) {
 // --------------------------------------- CONNECTION STATUS ---------------------------------------
 
 bool MQTT_Looped::verifyConnection(void) {
+  DEBUG_PRINTLN("Verifying connection...");
   // Construct and send ping packet.
   this->buffer[0] = MQTT_CTRL_PINGREQ << 4;
   this->buffer[1] = 0;
@@ -573,7 +574,7 @@ void MQTT_Looped::readFullPacketSearch(void) {
   }
   // Check timeout.
   if (this->read_packet_search && millis() - this->read_packet_search_timer > READ_PACKET_SEARCH_TIMEOUT) {
-    DEBUG_PRINTLN(F("..search timed out.."));
+    DEBUG_PRINTLN(F("Search timed out.."));
     this->read_packet_search = false;
     if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
       this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
@@ -596,6 +597,7 @@ void MQTT_Looped::readFullPacketSearch(void) {
     // If we didn't read anything, something might be wrong.
     if (this->full_packet_len == 0) {
       DEBUG_PRINTLN(F("search: no packet len"));
+      this->read_packet_search = false;
       if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
         this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
       } else if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
@@ -612,27 +614,32 @@ void MQTT_Looped::readFullPacketSearch(void) {
       // Looking for the following:
       case MQTT_CTRL_SUBACK:
         if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
+          this->read_packet_search = false;
           this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIBING;
         }
         return;
       case MQTT_CTRL_PUBACK:
         if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
+          this->read_packet_search = false;
           this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
         }
         return;
       case MQTT_CTRL_PINGRESP:
         if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
+          this->read_packet_search = false;
           this->status = MQTT_LOOPED_STATUS_OKAY;
         }
         return;
       // Probably not looking for the following:
       case MQTT_CTRL_CONNECTACK:
         if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
+          this->read_packet_search = false;
           this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER;
         }
         return;
       // Not looking for the following, but process if we read it:
       case MQTT_CTRL_PUBLISH:
+        this->read_packet_search = false;
         this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ;
         return;
       // Not looking for these:
@@ -786,7 +793,6 @@ bool MQTT_Looped::readPacket(void) {
   // handle zero-length packets
   if (this->read_packet_maxlen == 0) {
     this->reading_packet = false;
-    DEBUG_PRINTLN(F("zero maxlen"));
     return true;
   }
   // see if there is any data pending
