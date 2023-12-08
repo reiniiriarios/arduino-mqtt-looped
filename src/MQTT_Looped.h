@@ -217,7 +217,7 @@ class MQTTSubscribe {
     /**
      * @brief Quality of Service level.
      */
-    uint8_t qos;
+    uint8_t qos = 0;
 
     /**
      * @brief Last data read from this subscription.
@@ -228,12 +228,12 @@ class MQTTSubscribe {
      * @brief Number valid bytes in lastread.
      *        Limited to MAXBUFFERSIZE-1 to ensure null terminating lastread.
      */
-    uint16_t datalen;
+    uint16_t datalen = 0;
 
     /**
      * @brief Whether this subscription has a new message that should be processed.
      */
-    bool new_message;
+    bool new_message = false;
 };
 
 // -------------------------------------------- ROBBERY --------------------------------------------
