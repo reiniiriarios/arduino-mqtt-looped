@@ -82,11 +82,12 @@ void MQTT_Looped::loop(void) {
       this->waitAfterConnection();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTION_SUCCESS:
+    case MQTT_LOOPED_STATUS_MQTT_MISSING_CONACK:
       // After connecting to the server, make the MQTT broker connection.
       this->mqttConnectBroker();
       return;
-    case MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER:
-      // Confirm connection to the broker.
+    case MQTT_LOOPED_STATUS_READING_CONACK_PACKET:
+      // Look for conack to confirm connection to the broker.
       this->confirmConnectToBroker();
       return;
     case MQTT_LOOPED_STATUS_MQTT_CONNECTION_CONFIRMED:
@@ -104,10 +105,9 @@ void MQTT_Looped::loop(void) {
       // Send discoveries, if any, one per loop.
       this->sendDiscoveries();
       return;
-    case MQTT_LOOPED_STATUS_READING_CONACK_PACKET:
     case MQTT_LOOPED_STATUS_READING_SUB_PACKET:
-      // Keep looping until we read one full packet.
-      this->readFullPacket();
+      // Look for a subscription packet. If none, go back to OKAY.
+      this->lookForSubPacket();
       return;
     case MQTT_LOOPED_STATUS_READING_SUBACK_PACKET:
     case MQTT_LOOPED_STATUS_READING_PUBACK_PACKET:
@@ -130,7 +130,7 @@ void MQTT_Looped::loop(void) {
         return;
       }
       // If not doing anything else, look for subscription packets next loop.
-      // this->status = MQTT_LOOPED_STATUS_READING_SUB_PACKET;
+      this->status = MQTT_LOOPED_STATUS_READING_SUB_PACKET;
       return;
     default:
       LOG_PRINT("Error: Unrecognized MQTT_Looped status: ");
@@ -302,15 +302,20 @@ bool MQTT_Looped::mqttConnectBroker() {
 }
 
 bool MQTT_Looped::confirmConnectToBroker() {
-  this->attempts = 0;
+  this->readFullPacket();
+  // Wait until a full packet read attempt is complete,
+  if (this->read_packet_jump_to != -1) {
+    return false;
+  }
+  // Then try to process what was read:
   if (this->full_packet_len != 4) {
     DEBUG_PRINT(F("err read packet.."));
-    this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+    this->status = MQTT_LOOPED_STATUS_MQTT_MISSING_CONACK;
     return false;
   }
   if ((this->buffer[0] != (MQTT_CTRL_CONNECTACK << 4)) || (this->buffer[1] != 2)) {
     DEBUG_PRINT(F("err read buf.."));
-    this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+    this->status = MQTT_LOOPED_STATUS_MQTT_MISSING_CONACK;
     return false;
   }
   if (this->buffer[3] != 0) {
@@ -318,7 +323,7 @@ bool MQTT_Looped::confirmConnectToBroker() {
     DEBUG_PRINT(this->buffer[3]);
     DEBUG_PRINT(F(".."));
     if (!this->buffer[3] == 1) {
-      this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+      this->status = MQTT_LOOPED_STATUS_MQTT_MISSING_CONACK;
       return false;
     }
   }
@@ -466,7 +471,7 @@ bool MQTT_Looped::mqttIsConnected(void) {
 }
 
 bool MQTT_Looped::mqttIsActive(void) {
-  return (int)this->status > (int)MQTT_LOOPED_STATUS_OKAY;
+  return (int)this->status >= (int)MQTT_LOOPED_STATUS_ACTIVE;
 }
 
 // ------------------------------------------- MESSAGING -------------------------------------------
@@ -576,15 +581,25 @@ void MQTT_Looped::readFullPacketSearch(void) {
   if (this->read_packet_search && millis() - this->read_packet_search_timer > READ_PACKET_SEARCH_TIMEOUT) {
     DEBUG_PRINTLN(F("Search timed out.."));
     this->read_packet_search = false;
+    // If we were trying to subscribe and we got nothing, assume it failed.
     if (this->status == MQTT_LOOPED_STATUS_READING_SUBACK_PACKET) {
       this->status = MQTT_LOOPED_STATUS_MQTT_SUBSCRIPTION_FAIL;
-    } else if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
-      // 
+    }
+    // If we didn't find a sub packet, that's fine.
+    else if (this->status == MQTT_LOOPED_STATUS_READING_SUB_PACKET) {
+      this->status = MQTT_LOOPED_STATUS_OKAY;
+    }
+    // If we published and waited for a response, we didn't get one, go back to that loop.
+    else if (this->status == MQTT_LOOPED_STATUS_READING_PUBACK_PACKET) {
       this->status = MQTT_LOOPED_STATUS_MQTT_PUBLISHED;
-    } else if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
+    }
+    // If we were sent a ping and got nothing, assume the connection should be reset.
+    else if (this->status == MQTT_LOOPED_STATUS_READING_PING_PACKET) {
       this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
-    } else {
-      DEBUG_PRINTLN(F("This is a weird place to be.")); // should never be called
+    }
+    // The following should never be called.
+    else {
+      DEBUG_PRINTLN(F("This is a weird place to be."));
       this->status = MQTT_LOOPED_STATUS_OKAY;
     }
     return; // = done
@@ -630,19 +645,13 @@ void MQTT_Looped::readFullPacketSearch(void) {
           this->status = MQTT_LOOPED_STATUS_OKAY;
         }
         return;
-      // Probably not looking for the following:
-      case MQTT_CTRL_CONNECTACK:
-        if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
-          this->read_packet_search = false;
-          this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER;
-        }
-        return;
       // Not looking for the following, but process if we read it:
       case MQTT_CTRL_PUBLISH:
         this->read_packet_search = false;
         this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ;
         return;
       // Not looking for these:
+      case MQTT_CTRL_CONNECTACK:  // not relevant here
       case MQTT_CTRL_CONNECT:     // send only
       case MQTT_CTRL_DISCONNECT:  // send only
       case MQTT_CTRL_PINGREQ:     // send only
@@ -664,22 +673,42 @@ void MQTT_Looped::readFullPacketSearch(void) {
   }
 }
 
+void MQTT_Looped::lookForSubPacket(void) {
+  this->readFullPacket(); // loop once...
+  // when done,
+  if (this->read_packet_jump_to == -1) {
+    if (this->full_packet_len > 0) {
+      this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ;
+    } else {
+      this->status = MQTT_LOOPED_STATUS_OKAY;
+    }
+  }
+}
+
 void MQTT_Looped::readFullPacket(void) {
   // Check we haven't timed out.
   if (this->read_packet_jump_to > 0 && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
+    this->read_packet_jump_to = -1; // giving up, reset timer next time
+    this->reading_packet = false; // reset individual read
+    // If we didn't find a sub packet, that's fine.
+    if (this->status == MQTT_LOOPED_STATUS_READING_SUB_PACKET) {
+      // no debug lines here pls, we do this a lot
+      return;
+    }
+    DEBUG_PRINTLN();
     DEBUG_PRINT(F("reading packet timed out at step "));
     DEBUG_PRINT(this->read_packet_jump_to);
     DEBUG_PRINT(F(", status: "));
     DEBUG_PRINTLN(this->status);
     // If offline, flag to connect; if connected, flag to reset connection.
-    if (!this->wifiClient->connected()) {
-      DEBUG_PRINT(F("offline.."));
-      this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
-    } else {
-      DEBUG_PRINT(F("errors?.."));
-      this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
-    }
-    this->read_packet_jump_to = -1; // giving up, reset timer next time
+    // if (!this->wifiClient->connected()) {
+    //   DEBUG_PRINT(F("offline.."));
+    //   this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
+    // }
+    // else {
+    //   DEBUG_PRINT(F("errors?.."));
+    //   this->status = MQTT_LOOPED_STATUS_MQTT_ERRORS;
+    // }
     return;
   }
   // Run through each step incrementally, intermittently waiting on a packet read
@@ -706,7 +735,7 @@ void MQTT_Looped::readFullPacket(void) {
       if (this->read_packet_len != 1) {
         DEBUG_PRINTLN(F("bad pkt len 1"));
         this->full_packet_len = 0;
-        this->read_packet_jump_to = 0;
+        this->read_packet_jump_to = -1; // reset loop
         return;
       }
       DEBUG_PRINT(F("Packet Type:\t"));
@@ -724,7 +753,7 @@ void MQTT_Looped::readFullPacket(void) {
       if (this->read_packet_len != 1) {
         DEBUG_PRINTLN(F("bad pkt len 2"));
         this->full_packet_len = 0;
-        this->read_packet_jump_to = 0;
+        this->read_packet_jump_to = -1; // reset loop
         return;
       }
       {
@@ -735,7 +764,7 @@ void MQTT_Looped::readFullPacket(void) {
         this->read_packet_multiplier *= 128;
         if (this->read_packet_multiplier > (128UL * 128UL * 128UL)) {
           DEBUG_PRINT(F("Malformed packet len\n"));
-          this->read_packet_jump_to = -1;
+          this->read_packet_jump_to = -1; // reset loop
           return;
         }
         if (encodedByte & 0x80) {
@@ -764,11 +793,6 @@ void MQTT_Looped::readFullPacket(void) {
       this->full_packet_len = (this->read_packet_pbuf - this->read_packet_buf) + this->read_packet_len;
       this->last_con_verify = millis();
       this->read_packet_jump_to = -1; // read, reset timer next time
-      if (this->status == MQTT_LOOPED_STATUS_READING_CONACK_PACKET) {
-        this->status = MQTT_LOOPED_STATUS_MQTT_CONNECTED_TO_BROKER; // next step verifies
-      } else if (this->status == MQTT_LOOPED_STATUS_READING_SUB_PACKET) {
-        this->status = MQTT_LOOPED_STATUS_SUBSCRIPTION_PACKET_READ; // next step processes
-      }
       return;
     default:
       DEBUG_PRINT(F("Fell out of packet loop: "));
@@ -779,16 +803,17 @@ void MQTT_Looped::readFullPacket(void) {
 }
 
 bool MQTT_Looped::readPacket(void) {
-  // Check we haven't timed out.
+  // If we're out of read time, call it and move on.
   if (this->reading_packet && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
-    DEBUG_PRINT(F("..read timed out.."));
+    DEBUG_PRINTLN();
     this->reading_packet = false;
-    return true; // = done
+    return true; // done! <<< success?
   }
   // start engines
   if (!this->reading_packet) {
     this->read_packet_len = 0;
     this->reading_packet = true;
+    this->read_packet_timer = millis();
   }
   // handle zero-length packets
   if (this->read_packet_maxlen == 0) {
@@ -798,13 +823,15 @@ bool MQTT_Looped::readPacket(void) {
   // see if there is any data pending
   if (!this->wifiClient->available()) {
     DEBUG_PRINT("-");
-    return false; // if not, wait for it...
+    return false; // wait for it...
   }
+  // there's data still coming in, reset the timer
+  this->read_packet_timer = millis();
   // read packet
   char c = this->wifiClient->read();
   this->read_packet_pbuf[this->read_packet_len] = c;
   this->read_packet_len++;
-  if (this->read_packet_len != this->read_packet_maxlen) {
+  if (this->read_packet_len < this->read_packet_maxlen) {
     DEBUG_PRINT(".");
     return false;
   }
@@ -812,7 +839,7 @@ bool MQTT_Looped::readPacket(void) {
   DEBUG_PRINT(F("Read packet:\t"));
   DEBUG_PRINTBUFFER(this->read_packet_pbuf, this->read_packet_len);
   this->reading_packet = false;
-  return true;
+  return true; // we hit maxlen, done! <<< success
 }
 
 bool MQTT_Looped::handleSubscriptionPacket() {
