@@ -422,7 +422,6 @@ bool MQTT_Looped::sendDiscoveries(void) {
   }
   LOG_PRINT(F("Sending discovery: "));
   // Send at current counter, then inc and return, wait for next loop.
-  this->status = MQTT_LOOPED_STATUS_SENDING_DISCOVERY;
   auto d = this->discoveries.at(this->discovery_counter);
   LOG_PRINTLN(d->topic);
   if (!this->mqttPublish(d->topic, d->payload)) {
@@ -433,6 +432,7 @@ bool MQTT_Looped::sendDiscoveries(void) {
     }
     return false;
   }
+  this->status = MQTT_LOOPED_STATUS_SENDING_DISCOVERY;
   this->discovery_counter++;
   return true;
 }
