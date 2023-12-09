@@ -405,6 +405,36 @@ class MQTT_Looped {
      */
     void mqttSendMessage(const char* topic, const char* payload, bool retain = false, uint8_t qos = 0);
 
+    /**
+     * @brief Send MQTT message. Verifies connection before sending.
+     *
+     * @param topic
+     * @param payload
+     * @param retain
+     * @param qos
+     */
+    void mqttSendMessage(const char* topic, String payload, bool retain = false, uint8_t qos = 0);
+
+    /**
+     * @brief Send MQTT message. Verifies connection before sending.
+     *
+     * @param topic
+     * @param payload
+     * @param retain
+     * @param qos
+     */
+    void mqttSendMessage(const char* topic, float payload, bool retain = false, uint8_t qos = 0);
+
+    /**
+     * @brief Send MQTT message. Verifies connection before sending.
+     *
+     * @param topic
+     * @param payload
+     * @param retain
+     * @param qos
+     */
+    void mqttSendMessage(const char* topic, uint32_t payload, bool retain = false, uint8_t qos = 0);
+
   // --------------------##-------------------- PRIVATE ---------------------##---------------------
 
   private:

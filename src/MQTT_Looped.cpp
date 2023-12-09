@@ -530,6 +530,18 @@ void MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool r
   }
 }
 
+void MQTT_Looped::mqttSendMessage(const char* topic, String payload, bool retain, uint8_t qos) {
+  this->mqttSendMessage(topic, payload.c_str(), retain, qos);
+}
+
+void MQTT_Looped::mqttSendMessage(const char* topic, float payload, bool retain, uint8_t qos) {
+  this->mqttSendMessage(topic, String(payload).c_str(), retain, qos);
+}
+
+void MQTT_Looped::mqttSendMessage(const char* topic, uint32_t payload, bool retain, uint8_t qos) {
+  this->mqttSendMessage(topic, String(payload).c_str(), retain, qos);
+}
+
 bool MQTT_Looped::mqttPublish(const char* topic, const char* payload, bool retain, uint8_t qos) {
   if (this->status != MQTT_LOOPED_STATUS_MQTT_PUBLISHED) {
     uint8_t* data = (uint8_t *)payload;
