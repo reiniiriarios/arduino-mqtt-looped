@@ -522,10 +522,10 @@ void MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool r
     this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     return;
   }
-  DEBUG_PRINT(F("MQTT publishing to "));
-  DEBUG_PRINTLN(topic);
+  LOG_PRINT(F("MQTT publishing to "));
+  LOG_PRINTLN(topic);
   if (!this->mqttPublish(topic, payload, retain, qos)) {
-    DEBUG_PRINTLN(F("Error publishing"));
+    LOG_PRINTLN(F("Error publishing"));
   }
 }
 
