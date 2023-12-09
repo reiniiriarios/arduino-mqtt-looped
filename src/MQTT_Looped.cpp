@@ -514,6 +514,10 @@ void MQTT_Looped::onMqtt(const char* topic, mqttcallback_t callback) {
 }
 
 void MQTT_Looped::mqttSendMessage(const char* topic, const char* payload, bool retain, uint8_t qos) {
+  // If not connected OR if in the middle of something.
+  if (!this->mqttIsConnected() || this->mqttIsActive()) {
+    return;
+  }
   if (!this->wifiClient->connected()) {
     this->status = MQTT_LOOPED_STATUS_MQTT_OFFLINE;
     return;
