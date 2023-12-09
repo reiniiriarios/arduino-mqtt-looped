@@ -151,7 +151,7 @@ bool MQTT_Looped::closeConnection(bool wifi_connected) {
   }
   // In WiFi loop, connection is ready to begin.
   // In MQTT loop, connection was closed and needs to reconnect.
-  this->status = wifi_connected ? MQTT_LOOPED_STATUS_MQTT_DISCONNECTED : MQTT_LOOPED_STATUS_WIFI_READY;
+  this->status = wifi_connected ? MQTT_LOOPED_STATUS_MQTT_DISCONNECTED : MQTT_LOOPED_STATUS_INIT;
   return true;
 }
 
@@ -184,14 +184,24 @@ bool MQTT_Looped::wifiSetup(void) {
   if (ret == WL_SUCCESS) {
     LOG_PRINTLN(F("...ready"));
     this->status = MQTT_LOOPED_STATUS_WIFI_READY;
+    this->attempts = 0;
     return true;
   }
   LOG_PRINTLN(F("...failure"));
-  this->status = MQTT_LOOPED_STATUS_WIFI_ERRORS;
+  // no status update, if we can't get this one, we're not going anywhere...
   return false;
 }
 
 bool MQTT_Looped::wifiConnect(void) {
+  // Each "attempt" is a single loop of waiting, and we want to wait a few seconds here.
+  // If it just never connects, try closing the connection and reopening.
+  this->attempts++;
+  if (this->attempts > 720) {
+    this->status = MQTT_LOOPED_STATUS_WIFI_ERRORS;
+    this->attempts = 0;
+    return false;
+  }
+  // Loop and wait here until the WiFi chip connects.
   int8_t wifiStatus = WiFiDrv::getConnectionStatus();
   switch (wifiStatus) {
     case WL_CONNECTED:
@@ -201,7 +211,7 @@ bool MQTT_Looped::wifiConnect(void) {
     case WL_IDLE_STATUS:
     case WL_NO_SSID_AVAIL:
     case WL_SCAN_COMPLETED:
-      // do nothing, wait...
+      // do nothing, wait...we might be here a few seconds...
       return false;
     case WL_FAILURE:
     case WL_AP_FAILED:
