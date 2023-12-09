@@ -83,7 +83,7 @@ using namespace std;
 // ------------------------------------------- DEBUGGERY -------------------------------------------
 
 // Uncomment/comment to turn on/off debug output messages.
-#define MQTT_LOG
+// #define MQTT_LOG
 // #define MQTT_DEBUG
 
 // Set where debug messages will be printed.
