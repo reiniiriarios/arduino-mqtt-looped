@@ -21,6 +21,10 @@ adapt this library for a different WiFi driver, look to the `wifiSetup()`, `wifi
 `mqttConnect()` and related methods. If you'd like to adapt the library for ethernet, these same
 methods could likely be simplified or removed from the loop.
 
+## Install
+
+The easiest way to install is to search for `MQTT_Looped` in the Library Manager in the [Arduino IDE](https://www.arduino.cc/en/software) or [VS Code extension](https://marketplace.visualstudio.com/items?itemName=vsciot-vscode.vscode-arduino).
+
 ## Usage
 
 See [examples](./examples/basic/basic.ino) for example usage.
