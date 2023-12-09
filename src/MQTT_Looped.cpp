@@ -369,8 +369,8 @@ bool MQTT_Looped::mqttSubscribe(void) {
   } while (true);
 
   // Subscribe
-  LOG_PRINTLN(F("MQTT subscribing.."));
-  DEBUG_PRINT(sub->topic);
+  LOG_PRINT(F("MQTT subscribing: "));
+  LOG_PRINTLN(sub->topic);
   // Construct and send subscription packet.
   uint8_t len = this->subscribePacket(sub->topic, 0);
   if (!this->sendPacket(this->buffer, len)) {
@@ -420,10 +420,11 @@ bool MQTT_Looped::sendDiscoveries(void) {
     this->discovery_counter = 0;
     return true;
   }
-  LOG_PRINTLN(F("Sending discovery.."));
+  LOG_PRINT(F("Sending discovery: "));
   // Send at current counter, then inc and return, wait for next loop.
   this->status = MQTT_LOOPED_STATUS_SENDING_DISCOVERY;
   auto d = this->discoveries.at(this->discovery_counter);
+  LOG_PRINTLN(d->topic);
   if (!this->mqttPublish(d->topic, d->payload)) {
     LOG_PRINTLN(F("error sending discovery"));
     if (!this->wifiClient->connected()) {
