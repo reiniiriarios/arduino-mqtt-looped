@@ -121,7 +121,7 @@ void MQTT_Looped::loop(void) {
       return;
     case MQTT_LOOPED_STATUS_OKAY:
       // Verify connection every so often.
-      if (millis() - this->last_con_verify > VERIFY_TIMEOUT) {
+      if (millis() - this->last_con_verify > MQTT_VERIFY_TIMEOUT) {
         this->verifyConnection();
         return;
       }
@@ -605,7 +605,7 @@ void MQTT_Looped::readFullPacketSearch(void) {
     this->read_packet_search = true;
   }
   // Check timeout.
-  if (this->read_packet_search && millis() - this->read_packet_search_timer > READ_PACKET_SEARCH_TIMEOUT) {
+  if (this->read_packet_search && millis() - this->read_packet_search_timer > MQTT_READ_PACKET_SEARCH_TIMEOUT) {
     DEBUG_PRINTLN(F("Search timed out.."));
     this->read_packet_search = false;
     // If we were trying to subscribe and we got nothing, assume it failed.
@@ -714,7 +714,7 @@ void MQTT_Looped::lookForSubPacket(void) {
 
 void MQTT_Looped::readFullPacket(void) {
   // Check we haven't timed out.
-  if (this->read_packet_jump_to > 0 && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
+  if (this->read_packet_jump_to > 0 && millis() - this->read_packet_timer > MQTT_READ_PACKET_TIMEOUT) {
     this->read_packet_jump_to = -1; // giving up, reset timer next time
     this->reading_packet = false; // reset individual read
     // If we didn't find a sub packet, that's fine.
@@ -831,7 +831,7 @@ void MQTT_Looped::readFullPacket(void) {
 
 bool MQTT_Looped::readPacket(void) {
   // If we're out of read time, call it and move on.
-  if (this->reading_packet && millis() - this->read_packet_timer > READ_PACKET_TIMEOUT) {
+  if (this->reading_packet && millis() - this->read_packet_timer > MQTT_READ_PACKET_TIMEOUT) {
     DEBUG_PRINTLN();
     this->reading_packet = false;
     return true; // done! <<< success?
@@ -975,7 +975,7 @@ bool MQTT_Looped::sendPacket(uint8_t *buf, uint16_t len) {
   while (len > 0) {
     // Check we haven't timed out.
     this->send_packet_timer = millis();
-    if (millis() - this->send_packet_timer > SEND_PACKET_TIMEOUT) {
+    if (millis() - this->send_packet_timer > MQTT_SEND_PACKET_TIMEOUT) {
       DEBUG_PRINT(F("sending packet timed out.."));
       // If offline, flag to connect; if connected, flag to reset connection.
       if (!this->wifiClient->connected()) {

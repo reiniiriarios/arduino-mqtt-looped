@@ -12,22 +12,22 @@ using namespace std;
 // ---------------------------------------- TIMING CONFIG ------------------------------------------
 
 // Timeout for reading packets.
-#define READ_PACKET_TIMEOUT 1000
+#define MQTT_READ_PACKET_TIMEOUT 1000
 
 // Timeout for looking for a packet.
-#define READ_PACKET_SEARCH_TIMEOUT 1500
+#define MQTT_READ_PACKET_SEARCH_TIMEOUT 1500
 
 // Timeout for sending packets.
-#define SEND_PACKET_TIMEOUT 750
+#define MQTT_SEND_PACKET_TIMEOUT 750
 
 // Keepalive sent with connect packet
 #define MQTT_CONN_KEEPALIVE 300
 
 // How long should we go with no packets before verifying the connection via a ping.
-#define VERIFY_TIMEOUT 20000
+#define MQTT_VERIFY_TIMEOUT 20000
 
 // Interval for sending MQTT status.
-#define STATUS_UPDATE_INTERVAL 30000
+#define MQTT_STATUS_UPDATE_INTERVAL 30000
 
 // --------------------------------------------- DEFS ----------------------------------------------
 
